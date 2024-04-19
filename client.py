@@ -11,12 +11,12 @@ try:
     # Connessione al server
     sock.connect(server_address)
     sock.sendall(password.encode())
-    # while 1:
-
-        # Invio del messaggio al server
-    message = input()
-    sock.sendall(message.encode())
-    print('MESSAGE SENT')
+    while True:
+        message = input("Enter your message (type 'quit' to exit): ")
+        if message == 'quit':
+            break
+        sock.sendall(message.encode())
+        print('MESSAGE SENT')
     del message
 
 finally:

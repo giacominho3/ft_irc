@@ -116,38 +116,39 @@ void Server::HandleClient(int client_fd)
     char msg[1024];
 
     memset(msg, 0, sizeof(msg));
-    while (true)
+    ssize_t bytes_received = recv(client_fd, msg, sizeof(msg), 0);
+    if (bytes_received == -1)
     {
-        ssize_t bytes_received = recv(client_fd, msg, sizeof(msg), 0);
-        if (bytes_received == -1)
+        if (errno == EWOULDBLOCK || errno == EAGAIN)
+            ;
+        else
         {
-            if (errno == EWOULDBLOCK || errno == EAGAIN)
-                continue;
-            else
-            {
-                std::cerr << "recv() failed from client " << client_fd << " with error: " << strerror(errno) << std::endl;
-                break;
-            }
+            std::cerr << "recv() failed from client " << client_fd << " with error: " << strerror(errno) << std::endl;
+            close(client_fd);
+            return;
         }
+    }
 
-        if (bytes_received == 0) {
-            std::cout << RED << "Client <" << client_fd << "> disconnected" << WHI << std::endl;
-            break;
-        }
+    else if (bytes_received == 0)
+    {
+        std::cout << RED << "Client <" << client_fd << "> disconnected" << WHI << std::endl;
+        close(client_fd);
+        return;
+    }
 
+    else
+    {
         msg[bytes_received] = '\0';
         // gestione dei messaggi in arrivo
         std::cout << "Message from client <" << client_fd << ">: " << msg << std::endl;
     }
-
-    close(client_fd);
 }
-
 
 void Server::Run(std::string password)
 {
     for (size_t i = 0; i < fds.size(); i++)
     {
+        usleep(100);
         if (fds[i].revents & POLLIN)
         {
             if (fds[i].fd == SerSocketFd)
