@@ -44,24 +44,20 @@ int Server::AcceptNewClient()
         return 1;
     }
 
-    // ssize_t bytes_received = recv(incofd, buffer, sizeof(buffer), 0);
-    // if (bytes_received == -1) {
-    //     if (errno != EWOULDBLOCK && errno != EAGAIN) {
-    //         return ServerError("recv() failed", incofd);
-    //     }
-    // }
-
-    // buffer[bytes_received] = '\0';
-
-    // if (bytes_received > 0 && strcmp(buffer, password.c_str()) != 0) {
-    //     return ServerError("invalid password", incofd);
-    // }
-
     NewPoll.fd = incofd;
     NewPoll.events = POLLIN;
     fds.push_back(NewPoll);
 
     std::cout << MAG << "Client <" << incofd << "> Connected" << WHI << std::endl;
+
+    const char* welcomeMsg = "\e[1;31m\nPassword needed for authentication to this Server.\r\n\e[0;37m";
+    ssize_t sent = send(incofd, welcomeMsg, strlen(welcomeMsg), 0);
+    if (sent == -1)
+    {
+        std::cerr << RED << "Failed to send welcome message: " << strerror(errno) << WHI << std::endl;
+        close(incofd);
+        return 1;
+    }
     return 0;
 }
 
