@@ -37,6 +37,7 @@ class Server
 
         void ServerInit(int port, std::string password);
         int ServerError(std::string message, int incofd);
+        void ServerResponse(std::string message, int client_fd);
         void SetupServSocket();
         int AcceptNewClient();
         void HandleClient(int client_fd);
@@ -45,6 +46,6 @@ class Server
         std::string GetCommandParams(std::string command);
         static void SignalHandler(int signum);
         void CloseFds();
-        void HandleLogging(Client &client, std::string type, std::string params);
+        void HandleLogging(int client_fd, Client &client, std::string type, std::string params);
         void Run();
 };

@@ -9,6 +9,18 @@ int Server::ServerError(std::string message, int incofd)
     return errno;
 }
 
+void Server::ServerResponse(std::string message, int client_fd)
+{
+    const char* passwordMsg = message.c_str();
+    ssize_t sent = send(client_fd, passwordMsg, strlen(passwordMsg), 0);
+    if (sent == -1)
+    {
+        std::cerr << RED << "Failed to send welcome message: " << strerror(errno) << WHI << std::endl;
+        close(client_fd);
+        return ;
+    }
+}
+
 void Server::SignalHandler(int signum)
 {
     std::cout << std::endl << "Signal Received!" << std::endl;
@@ -50,14 +62,7 @@ int Server::AcceptNewClient()
 
     std::cout << MAG << "Client <" << incofd << "> Connected" << WHI << std::endl;
 
-    const char* welcomeMsg = "\e[1;31m\nPassword needed for authentication to this Server.\r\n\e[0;37m";
-    ssize_t sent = send(incofd, welcomeMsg, strlen(welcomeMsg), 0);
-    if (sent == -1)
-    {
-        std::cerr << RED << "Failed to send welcome message: " << strerror(errno) << WHI << std::endl;
-        close(incofd);
-        return 1;
-    }
+    ServerResponse("\e[1;31m\nPassword needed for authentication to this Server.\r\n\e[0;37m", incofd);
     return 0;
 }
 
@@ -186,7 +191,7 @@ void Server::HandleMessage(int client_fd, std::string command)
         {
             Client &client = clients.find(client_fd)->second;
             if (strcmp(command_type.c_str(), "NICK") == 0 || strcmp(command_type.c_str(), "USER") == 0)
-                HandleLogging(client, command_type, command_params);
+                HandleLogging(client_fd, client, command_type, command_params);
         }
     }
 
@@ -214,18 +219,22 @@ std::string Server::GetCommandParams(std::string command)
     return params;
 }
 
-void Server::HandleLogging(Client &client, std::string type, std::string params)
+void Server::HandleLogging(int client_fd, Client &client, std::string type, std::string params)
 {
     if (strcmp(type.c_str(), "NICK") == 0)
     {
         if (params.length() == 0)
             std::cout << RED << "Wrong syntax for NICK command" << WHI << std::endl << "Correct syntax is: NICK <nickname>" << std::endl;
         client.setNickname(params);
+        if (client.getNickname().length() > 0 && client.getUsername().length() > 0)
+        {
+            std::string response = "\e[1;32m\n:YourServer 001 " + client.getNickname() + " :Welcome to the IRC Network " + client.getNickname() + "!" + client.getUsername() + "@localhost\r\n\e[0;37m";
+            ServerResponse(response, client_fd);
+        }
     }
 
     else if (strcmp(type.c_str(), "USER") == 0)
     {
-        // USER <username> <hostname> <servername> :<realname>
         if (params.length() == 0)
             std::cout << RED << "Wrong syntax for USER command" << WHI << std::endl << "Correct syntax is: USER <username> <hostname> <servername> :<realname>" << std::endl;
         size_t firstSpace = params.find(' ');
@@ -234,10 +243,13 @@ void Server::HandleLogging(Client &client, std::string type, std::string params)
 
         if (firstSpace != std::string::npos && secondSpace != std::string::npos && colon != std::string::npos)
         {
-            client.setUsername(params.substr(0, firstSpace + 1));
+            client.setUsername(params.substr(0, firstSpace));
             client.setRealname(params.substr(colon + 1));
-            std::cout << client.getUsername() << std::endl;
-            std::cout << client.getRealname() << std::endl;
+            if (client.getNickname().length() > 0 && client.getUsername().length() > 0)
+            {
+                std::string response = "\e[1;32m\n:YourServer 001 " + client.getNickname() + " :Welcome to the IRC Network " + client.getNickname() + "!" + client.getUsername() + "@localhost\r\n\e[0;37m";
+                ServerResponse(response, client_fd);
+            }
         }
     }
 }
