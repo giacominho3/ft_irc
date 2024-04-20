@@ -12,6 +12,9 @@
 #include <cstring>
 #include <errno.h>
 #include <stdlib.h>
+#include <map>
+#include <ctype.h>
+#include "Client.hpp"
 
 #define RED "\e[1;31m"
 #define GRE "\e[1;32m"
@@ -22,19 +25,26 @@ class Server
 {
     private:
         int Port;
+        std::string Password;
         int SerSocketFd;
         static bool Signal;
         std::vector<struct pollfd> fds;
+        std::map<int, std::string> client_buffers;
+        std::map<int, Client> clients;
 
     public:
         Server() { SerSocketFd = -1; }
 
         void ServerInit(int port, std::string password);
         int ServerError(std::string message, int incofd);
-        void SerSocket();
-        int AcceptNewClient(std::string password);
+        void SetupServSocket();
+        int AcceptNewClient();
         void HandleClient(int client_fd);
+        void HandleMessage(int client_fd, std::string message);
+        std::string GetCommandType(std::string command);
+        std::string GetCommandParams(std::string command);
         static void SignalHandler(int signum);
         void CloseFds();
-        void Run(std::string password);
+        void HandleLogging(Client &client, std::string type, std::string params);
+        void Run();
 };

@@ -1,4 +1,4 @@
-NAME		= irc
+NAME		= ircserv
 
 CC			= c++
 FLAGS		= -Wall -Wextra -Werror -std=c++98
@@ -6,11 +6,11 @@ RM			= rm -rf
 
 OBJDIR = .objFiles
 
-FILES		= main Server
+FILES		= main Server Client
 
 SRC			= $(FILES:=.cpp)
 OBJ			= $(addprefix $(OBJDIR)/, $(FILES:=.o))
-HEADER		= Server.hpp
+HEADER		= Server.hpp Client.hpp
 #Colors:
 GREEN		=	\e[92;5;118m
 YELLOW		=	\e[93;5;226m
