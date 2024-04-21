@@ -1,5 +1,7 @@
 #include "Server.hpp"
 
+// modificare tutti i messaggi per farli aderire allo standard
+
 bool Server::Signal = false;
 
 int Server::ServerError(std::string message, int incofd)
@@ -34,6 +36,16 @@ void Server::CloseFds()
         std::cout << RED << "Server <" << SerSocketFd << "> Disconnected" << WHI << std::endl;
         close(SerSocketFd);
     }
+}
+
+std::map<int, Client>::const_iterator Server::findClientByUsername(const std::map<int, Client>& clients, const std::string& username)
+{
+    for (std::map<int, Client>::const_iterator it = clients.begin(); it != clients.end(); ++it)
+    {
+        if (it->second.getUsername() == username)
+            return it;
+    }
+    return clients.end();
 }
 
 int Server::AcceptNewClient()
@@ -164,6 +176,7 @@ void Server::HandleMessage(int client_fd, std::string command)
     std::string command_type = GetCommandType(command);
     std::string command_params = GetCommandParams(command);
 
+    // creare metodo per handlepass
     if (strcmp(command_type.c_str(), "PASS") == 0)
     {
         if (clients.find(client_fd) != clients.end())
@@ -190,7 +203,7 @@ void Server::HandleMessage(int client_fd, std::string command)
         else
         {
             Client &client = clients.find(client_fd)->second;
-            if (strcmp(command_type.c_str(), "NICK") == 0 || strcmp(command_type.c_str(), "USER") == 0)
+            if (strcmp(command_type.c_str(), "NICK") == 0 || strcmp(command_type.c_str(), "USER") == 0 || strcmp(command_type.c_str(), "OPER") == 0)
                 HandleLogging(client_fd, client, command_type, command_params);
         }
     }
@@ -221,6 +234,7 @@ std::string Server::GetCommandParams(std::string command)
 
 void Server::HandleLogging(int client_fd, Client &client, std::string type, std::string params)
 {
+    // controllare se nick o user già esistono
     if (strcmp(type.c_str(), "NICK") == 0)
     {
         if (params.length() == 0)
@@ -249,6 +263,35 @@ void Server::HandleLogging(int client_fd, Client &client, std::string type, std:
             {
                 std::string response = "\e[1;32m\n:YourServer 001 " + client.getNickname() + " :Welcome to the IRC Network " + client.getNickname() + "!" + client.getUsername() + "@localhost\r\n\e[0;37m";
                 ServerResponse(response, client_fd);
+            }
+        }
+    }
+
+    else if (strcmp(type.c_str(), "OPER") == 0)
+    {
+        if (params.length() == 0)
+            std::cout << RED << "Wrong syntax for USER command" << WHI << std::endl << "Correct syntax is: OPER <username> <password>" << std::endl;
+        
+        size_t firstSpace = params.find(' ');
+        std::string tempUser = params.substr(0, firstSpace);
+        std::map<int, Client>::const_iterator it = findClientByUsername(clients, tempUser);
+
+        if (it != clients.end())
+        {
+            size_t secondSpace = params.find(' ', firstSpace + 1);
+            std::string tempOpPass = params.substr(firstSpace + 1, secondSpace);
+
+            if (strcmp(tempOpPass.c_str(), opPass.c_str()))
+            {
+                Client client = it->second;
+                if (client.getOper())
+                    std::cout << "You are already an Operator on this Server" << std::endl;
+                else
+                {
+                    client.setOper(1);
+                    std::string response = "\e[1;32m\n:YourServer 001 " + client.getUsername() + " :You're now an operator for this Server " + client.getNickname() + "!" + client.getUsername() + "@localhost\r\n\e[0;37m";
+                    ServerResponse(response, client_fd);
+                }
             }
         }
     }
