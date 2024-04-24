@@ -6,11 +6,11 @@ RM			= rm -rf
 
 OBJDIR = .objFiles
 
-FILES		= main Server Client
+FILES		= main Server Client Channel
 
 SRC			= $(FILES:=.cpp)
 OBJ			= $(addprefix $(OBJDIR)/, $(FILES:=.o))
-HEADER		= Server.hpp Client.hpp
+HEADER		= Server.hpp Client.hpp Channel.hpp
 #Colors:
 GREEN		=	\e[92;5;118m
 YELLOW		=	\e[93;5;226m

@@ -14,7 +14,9 @@
 #include <stdlib.h>
 #include <map>
 #include <ctype.h>
+#include <sstream>
 #include "Client.hpp"
+#include "Channel.hpp"
 
 #define RED "\e[1;31m"
 #define GRE "\e[1;32m"
@@ -26,17 +28,18 @@ class Server
     private:
         int Port;
         std::string Password;
+        std::string opPass;
         int SerSocketFd;
         static bool Signal;
         std::vector<struct pollfd> fds;
         std::map<int, std::string> client_buffers;
         std::map<int, Client> clients;
-        std::string opPass;
+        std::map<std::string, Channel> channels;
 
     public:
         Server() { SerSocketFd = -1; opPass = "13091995"; }
 
-        std::map<int, Client>::const_iterator findClientByUsername(const std::map<int, Client>& clients, const std::string& username);
+        std::map<int, Client>::iterator findClientByUsername(std::map<int, Client>& clients, std::string& username);
         void ServerInit(int port, std::string password);
         int ServerError(std::string message, int incofd);
         void ServerResponse(std::string message, int client_fd);
@@ -49,5 +52,6 @@ class Server
         static void SignalHandler(int signum);
         void CloseFds();
         void HandleLogging(int client_fd, Client &client, std::string type, std::string params);
+        void HandleChannels(int client_fd, Client &client, std::string type, std::string params);
         void Run();
 };

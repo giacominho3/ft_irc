@@ -1,10 +1,7 @@
 import socket
 import threading
 
-# Definizione dell'indirizzo e della porta del server
 server_address = ('localhost', 4444)
-
-# Creazione del socket TCP/IP
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 def receive_messages(sock):
@@ -15,25 +12,27 @@ def receive_messages(sock):
                 print("Server closed the connection.")
                 break
             print("\nReceived:", data.decode())
+    except socket.error as e:
+        print(f"Socket error: {e}")
     finally:
+        print("Closing socket from receiver.")
         sock.close()
 
 try:
-    # Connessione al server
     sock.connect(server_address)
-    
-    # Creazione e avvio del thread per la ricezione dei messaggi
     receiver_thread = threading.Thread(target=receive_messages, args=(sock,))
     receiver_thread.start()
 
     while True:
-        message = input("Enter your message (type 'quit' to exit): ")
-        if message == 'quit':
-            break
+        message = input("Enter your message (type 'QUIT' to exit): ")
         sock.sendall((message + '\n').encode())
         print('MESSAGE SENT')
+        if (message == 'QUIT'):
+            sock.close()
+            exit(0)
 
 finally:
-    # Chiusura del socket
-    sock.close()
-    receiver_thread.join()  # Assicurati che il thread della ricezione termini
+    # Aggiungi un controllo per evitare di chiudere un socket già chiuso
+    if sock.fileno() != -1:
+        sock.close()
+    receiver_thread.join()

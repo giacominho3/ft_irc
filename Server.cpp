@@ -1,6 +1,6 @@
 #include "Server.hpp"
 
-// modificare tutti i messaggi per farli aderire allo standard
+// modificare tutti i messaggi per farli aderire allo standard ???
 
 bool Server::Signal = false;
 
@@ -38,9 +38,9 @@ void Server::CloseFds()
     }
 }
 
-std::map<int, Client>::const_iterator Server::findClientByUsername(const std::map<int, Client>& clients, const std::string& username)
+std::map<int, Client>::iterator Server::findClientByUsername(std::map<int, Client>& clients, std::string& username)
 {
-    for (std::map<int, Client>::const_iterator it = clients.begin(); it != clients.end(); ++it)
+    for (std::map<int, Client>::iterator it = clients.begin(); it != clients.end(); ++it)
     {
         if (it->second.getUsername() == username)
             return it;
@@ -74,7 +74,7 @@ int Server::AcceptNewClient()
 
     std::cout << MAG << "Client <" << incofd << "> Connected" << WHI << std::endl;
 
-    ServerResponse("\e[1;31m\nPassword needed for authentication to this Server.\r\n\e[0;37m", incofd);
+    ServerResponse("\e[1;31m\n:Your Server 001 :Password needed for authentication to this Server.\r\n\e[0;37m", incofd);
     return 0;
 }
 
@@ -162,6 +162,14 @@ void Server::HandleClient(int client_fd)
         while ((pos = client_buffers[client_fd].find('\n')) != std::string::npos)
         {
             std::string command = client_buffers[client_fd].substr(0, pos);
+            if (command == "QUIT")
+            {
+                std::cout << RED << "Client <" << client_fd << "> disconnected" << WHI << std::endl;
+                send(client_fd, "QUIT", 4, 0);
+                close(client_fd);
+                client_buffers.erase(client_fd);
+                return;
+            }
             HandleMessage(client_fd, command);
             client_buffers[client_fd].erase(0, pos + 1);
         }
@@ -171,25 +179,29 @@ void Server::HandleClient(int client_fd)
 
 void Server::HandleMessage(int client_fd, std::string command)
 {
+    // da togliere
     std::cout << "Messagge from client <" << client_fd << ">: " << command << std::endl;
 
     std::string command_type = GetCommandType(command);
     std::string command_params = GetCommandParams(command);
 
     // creare metodo per handlepass
-    if (strcmp(command_type.c_str(), "PASS") == 0)
+    if (command_type == "PASS")
     {
         if (clients.find(client_fd) != clients.end())
             std::cout << "You had already inserted the password!" << std::endl;
         else
         {
-            if (strcmp(command_params.c_str(), Password.c_str()) == 0)
+            if (command_params == Password)
             {
                 Client client(client_fd);
                 clients.insert(std::pair<int, Client>(client_fd, client));
             }
             else
-                std::cout << RED << "WRONG PASSWORD" << WHI << std::endl;
+            {
+                std::string response = "\e[1;31m\n:YourServer 001 :WRONG PASSWORD!\e[0;37m\r\n";
+                ServerResponse(response, client_fd);
+            }
         }
     }
 
@@ -197,14 +209,17 @@ void Server::HandleMessage(int client_fd, std::string command)
     {
         if (clients.find(client_fd) == clients.end())
         {
-            std::cout << RED << "Password needed to communicate!" << WHI << std::endl;
+            std::string response = "\e[1;31m\n:YourServer 001 :Password needed to commuinicate!\e[0;37m\r\n";
+            ServerResponse(response, client_fd);
             return ;
         }
         else
         {
             Client &client = clients.find(client_fd)->second;
-            if (strcmp(command_type.c_str(), "NICK") == 0 || strcmp(command_type.c_str(), "USER") == 0 || strcmp(command_type.c_str(), "OPER") == 0)
+            if (command_type == "NICK" || command_type == "USER" || command_type == "OPER")
                 HandleLogging(client_fd, client, command_type, command_params);
+            if (command_type == "JOIN")
+                HandleChannels(client_fd, client, command_type, command_params);
         }
     }
 
@@ -223,22 +238,33 @@ std::string Server::GetCommandType(std::string command)
 
 std::string Server::GetCommandParams(std::string command)
 {
-    int pos = 0;
+    size_t pos = command.find(' ');
 
-    while (isupper(command[pos]))
-        pos++;
-    
-    std::string params = command.substr(pos + 1, command.length());
-    return params;
+    if (pos == std::string::npos)
+        return "";
+
+    if (pos + 1 < command.length())
+        return command.substr(pos + 1);
+    else
+        return "";
 }
 
+
+// forse splittare ogni comando in un suo metodo individuale
 void Server::HandleLogging(int client_fd, Client &client, std::string type, std::string params)
 {
     // controllare se nick o user già esistono
-    if (strcmp(type.c_str(), "NICK") == 0)
+
+    // NICK command
+    if (type == "NICK")
     {
-        if (params.length() == 0)
-            std::cout << RED << "Wrong syntax for NICK command" << WHI << std::endl << "Correct syntax is: NICK <nickname>" << std::endl;
+        if (params.empty())
+        {
+            std::string response = "\e[1;31m\n:YourServer 001 :Wrong syntax for NICK command\n\e[0;37mCorrect syntax is: NICK <nickname>\r\n";
+            ServerResponse(response, client_fd);
+            return ;
+        }
+        
         client.setNickname(params);
         if (client.getNickname().length() > 0 && client.getUsername().length() > 0)
         {
@@ -247,10 +273,14 @@ void Server::HandleLogging(int client_fd, Client &client, std::string type, std:
         }
     }
 
-    else if (strcmp(type.c_str(), "USER") == 0)
+    // USER command
+    else if (type == "USER")
     {
         if (params.length() == 0)
-            std::cout << RED << "Wrong syntax for USER command" << WHI << std::endl << "Correct syntax is: USER <username> <hostname> <servername> :<realname>" << std::endl;
+        {
+            std::string response = "\e[1;31m\n:YourServer 001 :Wrong syntax for USER command\n\e[0;37mCorrect syntax is: USER <username> <hostname> <servername> :<realname>\r\n";
+            ServerResponse(response, client_fd);
+        }
         size_t firstSpace = params.find(' ');
         size_t secondSpace = params.find(' ', firstSpace + 1);
         size_t colon = params.find(':', secondSpace + 1);
@@ -267,33 +297,73 @@ void Server::HandleLogging(int client_fd, Client &client, std::string type, std:
         }
     }
 
-    else if (strcmp(type.c_str(), "OPER") == 0)
+    // OPER command
+    else if (type == "OPER")
     {
         if (params.length() == 0)
-            std::cout << RED << "Wrong syntax for USER command" << WHI << std::endl << "Correct syntax is: OPER <username> <password>" << std::endl;
-        
+        {
+            std::string response = "\e[1;31m\n:YourServer 001 :Wrong syntax for OPER command\n\e[0;37mCorrect syntax is: OPER <username> <password>\r\n";
+            ServerResponse(response, client_fd);
+        }
+
         size_t firstSpace = params.find(' ');
         std::string tempUser = params.substr(0, firstSpace);
-        std::map<int, Client>::const_iterator it = findClientByUsername(clients, tempUser);
+        std::map<int, Client>::iterator it = findClientByUsername(clients, tempUser);
 
         if (it != clients.end())
         {
             size_t secondSpace = params.find(' ', firstSpace + 1);
             std::string tempOpPass = params.substr(firstSpace + 1, secondSpace);
 
-            if (strcmp(tempOpPass.c_str(), opPass.c_str()))
+            if (tempOpPass == opPass)
             {
-                Client client = it->second;
-                if (client.getOper())
-                    std::cout << "You are already an Operator on this Server" << std::endl;
+                Client &tempClient = it->second;
+                if (tempClient.getOper())
+                {
+                    std::string response = "\n:YourServer 001 :" + tempClient.getUsername() + " is already an operator for this Server!\r\n";
+                    ServerResponse(response, client_fd);
+                }
                 else
                 {
-                    client.setOper(1);
-                    std::string response = "\e[1;32m\n:YourServer 001 " + client.getUsername() + " :You're now an operator for this Server " + client.getNickname() + "!" + client.getUsername() + "@localhost\r\n\e[0;37m";
+                    tempClient.setOper(1);
+                    std::cout << "BOH" << std::endl;
+                    std::string response = "\n:YourServer 001 :" + tempClient.getUsername() + " is now an operator for this Server[0;37m\r\n";
                     ServerResponse(response, client_fd);
                 }
             }
         }
+    }
+}
+
+
+void Server::HandleChannels(int client_fd, Client &client, std::string type, std::string params)
+{
+    if (type == "JOIN")
+    {
+        if (params.empty())
+        {
+            std::string response = "\e[1;31m\n:YourServer 001 :Wrong syntax for JOIN command\n\e[0;37mCorrect syntax is: JOIN #<channel-name>[,<channel-name,...]\r\n";
+            ServerResponse(response, client_fd);
+        }
+        else
+        {
+            std::istringstream iss(params);
+            std::string channelName;
+
+            while (std::getline(iss, channelName, ','))
+            {
+                channelName.erase(0, channelName.find_first_not_of(" \n\r\t\f\v"));
+                channelName.erase(channelName.find_last_not_of(" \n\r\t\f\v") + 1);
+
+                if (channels.find(channelName) == channels.end())
+                    channels.insert(std::pair<std::string,Channel>(channelName, Channel(channelName)));
+
+                channels[channelName].addMember(&client);
+                std::string response = "\e[1;32m\n:YourServer 001 :\e[0;37m Welcome to #" + channelName + " " + client.getUsername() + "\r\n";
+                ServerResponse(response, client_fd);
+            }
+        }
+
     }
 }
 
