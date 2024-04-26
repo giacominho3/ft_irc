@@ -21,6 +21,18 @@ class Channel
             return members_.erase(client) > 0;
         }
 
+        bool isMember(Client *client)
+        {
+            if (members_.find(client) != members_.end())
+                return true;
+            return false;
+        }
+
+        std::unordered_set<Client*> getMembers()
+        {
+            return members_;
+        }
+
         void setTopic(const std::string& topic)
         {
             topic_ = topic;

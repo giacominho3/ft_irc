@@ -1,6 +1,6 @@
 #include "Server.hpp"
 
-// modificare tutti i messaggi per farli aderire allo standard ???
+// modificare tutti i messaggi per farli aderire allo standard
 
 bool Server::Signal = false;
 
@@ -46,6 +46,26 @@ std::map<int, Client>::iterator Server::findClientByUsername(std::map<int, Clien
             return it;
     }
     return clients.end();
+}
+
+std::map<int, Client>::iterator Server::findClientByNickname(std::map<int, Client>& clients, std::string& nickname)
+{
+    for (std::map<int, Client>::iterator it = clients.begin(); it != clients.end(); ++it)
+    {
+        if (it->second.getNickname() == nickname)
+            return it;
+    }
+    return clients.end();
+}
+
+std::map<std::string, Channel>::iterator Server::findChannelByName(std::map<std::string, Channel>& channels, std::string& name)
+{
+    for (std::map<std::string, Channel>::iterator it = channels.begin(); it != channels.end(); ++it)
+    {
+        if (it->first == name)
+            return it;
+    }
+    return channels.end();
 }
 
 int Server::AcceptNewClient()
@@ -218,8 +238,10 @@ void Server::HandleMessage(int client_fd, std::string command)
             Client &client = clients.find(client_fd)->second;
             if (command_type == "NICK" || command_type == "USER" || command_type == "OPER")
                 HandleLogging(client_fd, client, command_type, command_params);
-            if (command_type == "JOIN")
+            else if (command_type == "JOIN")
                 HandleChannels(client_fd, client, command_type, command_params);
+            else if (command_type == "PRIVMSG")
+                HandlePrivateMsg(client_fd, client, command_params);
         }
     }
 
@@ -253,7 +275,8 @@ std::string Server::GetCommandParams(std::string command)
 // forse splittare ogni comando in un suo metodo individuale
 void Server::HandleLogging(int client_fd, Client &client, std::string type, std::string params)
 {
-    // controllare se nick o user già esistono
+    // controllare se nick o username già esistono
+    // permettere la sostituzione di nick e username
 
     // NICK command
     if (type == "NICK")
@@ -326,8 +349,7 @@ void Server::HandleLogging(int client_fd, Client &client, std::string type, std:
                 else
                 {
                     tempClient.setOper(1);
-                    std::cout << "BOH" << std::endl;
-                    std::string response = "\n:YourServer 001 :" + tempClient.getUsername() + " is now an operator for this Server[0;37m\r\n";
+                    std::string response = "\n:YourServer 001 :" + tempClient.getUsername() + " is now an operator for this Server\r\n";
                     ServerResponse(response, client_fd);
                 }
             }
@@ -338,6 +360,7 @@ void Server::HandleLogging(int client_fd, Client &client, std::string type, std:
 
 void Server::HandleChannels(int client_fd, Client &client, std::string type, std::string params)
 {
+    // JOIN command
     if (type == "JOIN")
     {
         if (params.empty())
@@ -352,7 +375,7 @@ void Server::HandleChannels(int client_fd, Client &client, std::string type, std
 
             while (std::getline(iss, channelName, ','))
             {
-                channelName.erase(0, channelName.find_first_not_of(" \n\r\t\f\v"));
+                channelName.erase(0, channelName.find_first_not_of(" \n\r\t\f\v#"));
                 channelName.erase(channelName.find_last_not_of(" \n\r\t\f\v") + 1);
 
                 if (channels.find(channelName) == channels.end())
@@ -364,6 +387,74 @@ void Server::HandleChannels(int client_fd, Client &client, std::string type, std
             }
         }
 
+    }
+}
+
+
+void Server::HandlePrivateMsg(int client_fd, Client &client, std::string params)
+{
+    // PRIVMSG command
+    if (params.empty())
+    {
+        std::string response = "\e[1;31m\n:YourServer 001 :Wrong syntax for PRIVMSG command\n\e[0;37mCorrect syntax is: PRIVMSG #<channel-name>/<nickname> :<message>\r\n";
+        ServerResponse(response, client_fd);
+    }
+    else
+    {
+        size_t divider = params.find(':');
+        std::string receiver = params.substr(0, divider - 1);
+        receiver.erase(0, receiver.find_first_not_of(" \n\r\t\f\v"));
+        receiver.erase(receiver.find_last_not_of(" \n\r\t\f\v") + 1);
+        std::string message = params.substr(divider + 1, params.length());
+        message = client.getNickname() + " : " + message;
+        const char *toSend = message.c_str();
+
+        if (receiver.find('#') != receiver.npos)
+        {
+            // il messaggio è per un canale
+            receiver.erase(0, receiver.find_first_not_of("#"));
+            if (findChannelByName(channels, receiver) != channels.end())
+            {
+                Channel &channel = findChannelByName(channels, receiver)->second;
+                if (channel.isMember(&client))
+                {
+                    std::unordered_set<Client*> channelMembers = channel.getMembers();
+                    for (std::unordered_set<Client*>::iterator it = channelMembers.begin(); it != channelMembers.end(); ++it)
+                    {
+                        Client* c = *it;
+                        if (c->getFD() != client_fd)
+                            send(c->getFD(), toSend, strlen(toSend), 0);
+                        // controllare errori nell'invio
+                    }
+                }
+                else
+                {
+                    std::string response = "\e[1;31m\n:YourServer 001 :You are not a member of this channel!\e[0;37m\r\n";
+                    ServerResponse(response, client_fd);
+                }
+            }
+            else
+            {
+                std::string response = "\e[1;31m\n:YourServer 001 :Seems like the channel name you typed does not exist!\e[0;37m\r\n";
+                ServerResponse(response, client_fd);
+            }
+        }
+
+        else
+        {
+            // il messaggio è per un utente
+            if (findClientByNickname(clients, receiver) != clients.end())
+            {
+                Client &receiverClient = findClientByNickname(clients, receiver)->second;
+                send(receiverClient.getFD(), toSend, strlen(toSend), 0);
+                // controllare errori nell'invio
+            }
+            else
+            {
+                std::string response = "\e[1;31m\n:YourServer 001 :Seems like the nickname you typed does not exist!\e[0;37m\r\n";
+                ServerResponse(response, client_fd);
+            }
+        }
     }
 }
 

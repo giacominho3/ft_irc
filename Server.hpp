@@ -40,6 +40,8 @@ class Server
         Server() { SerSocketFd = -1; opPass = "13091995"; }
 
         std::map<int, Client>::iterator findClientByUsername(std::map<int, Client>& clients, std::string& username);
+        std::map<int, Client>::iterator findClientByNickname(std::map<int, Client>& clients, std::string& nickname);
+        std::map<std::string, Channel>::iterator findChannelByName(std::map<std::string, Channel>& channels, std::string& name);
         void ServerInit(int port, std::string password);
         int ServerError(std::string message, int incofd);
         void ServerResponse(std::string message, int client_fd);
@@ -53,5 +55,6 @@ class Server
         void CloseFds();
         void HandleLogging(int client_fd, Client &client, std::string type, std::string params);
         void HandleChannels(int client_fd, Client &client, std::string type, std::string params);
+        void HandlePrivateMsg(int client_fd, Client &client, std::string params);
         void Run();
 };
