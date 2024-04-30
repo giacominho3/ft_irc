@@ -68,6 +68,31 @@ std::map<std::string, Channel>::iterator Server::findChannelByName(std::map<std:
     return channels.end();
 }
 
+std::string Server::GetCommandType(std::string command)
+{
+    int pos = 0;
+
+    while (isupper(command[pos]))
+        pos++;
+    
+    std::string type = command.substr(0, pos);
+    return type;
+}
+
+std::string Server::GetCommandParams(std::string command)
+{
+    size_t pos = command.find(' ');
+
+    if (pos == std::string::npos)
+        return "";
+
+    if (pos + 1 < command.length())
+        return command.substr(pos + 1);
+    else
+        return "";
+}
+
+
 int Server::AcceptNewClient()
 {
     struct sockaddr_in cliadd;
@@ -238,8 +263,10 @@ void Server::HandleMessage(int client_fd, std::string command)
             Client &client = clients.find(client_fd)->second;
             if (command_type == "NICK" || command_type == "USER" || command_type == "OPER")
                 HandleLogging(client_fd, client, command_type, command_params);
-            else if (command_type == "JOIN")
+            else if (command_type == "JOIN" || command_type == "PART")
                 HandleChannels(client_fd, client, command_type, command_params);
+            else if (command_type == "INVITE")
+                HandleChannelOpers(client_fd, client, command_type, command_params);
             else if (command_type == "PRIVMSG")
                 HandlePrivateMsg(client_fd, client, command_params);
         }
@@ -247,32 +274,7 @@ void Server::HandleMessage(int client_fd, std::string command)
 
 }
 
-std::string Server::GetCommandType(std::string command)
-{
-    int pos = 0;
 
-    while (isupper(command[pos]))
-        pos++;
-    
-    std::string type = command.substr(0, pos);
-    return type;
-}
-
-std::string Server::GetCommandParams(std::string command)
-{
-    size_t pos = command.find(' ');
-
-    if (pos == std::string::npos)
-        return "";
-
-    if (pos + 1 < command.length())
-        return command.substr(pos + 1);
-    else
-        return "";
-}
-
-
-// forse splittare ogni comando in un suo metodo individuale
 void Server::HandleLogging(int client_fd, Client &client, std::string type, std::string params)
 {
     // controllare se nick o username già esistono
@@ -299,7 +301,7 @@ void Server::HandleLogging(int client_fd, Client &client, std::string type, std:
     // USER command
     else if (type == "USER")
     {
-        if (params.length() == 0)
+        if (params.empty())
         {
             std::string response = "\e[1;31m\n:YourServer 001 :Wrong syntax for USER command\n\e[0;37mCorrect syntax is: USER <username> <hostname> <servername> :<realname>\r\n";
             ServerResponse(response, client_fd);
@@ -311,7 +313,7 @@ void Server::HandleLogging(int client_fd, Client &client, std::string type, std:
         if (firstSpace != std::string::npos && secondSpace != std::string::npos && colon != std::string::npos)
         {
             client.setUsername(params.substr(0, firstSpace));
-            client.setRealname(params.substr(colon + 1));
+            client.setRealname(params.substr(colon + 1, params.length()));
             if (client.getNickname().length() > 0 && client.getUsername().length() > 0)
             {
                 std::string response = "\e[1;32m\n:YourServer 001 " + client.getNickname() + " :Welcome to the IRC Network " + client.getNickname() + "!" + client.getUsername() + "@localhost\r\n\e[0;37m";
@@ -323,7 +325,7 @@ void Server::HandleLogging(int client_fd, Client &client, std::string type, std:
     // OPER command
     else if (type == "OPER")
     {
-        if (params.length() == 0)
+        if (params.empty())
         {
             std::string response = "\e[1;31m\n:YourServer 001 :Wrong syntax for OPER command\n\e[0;37mCorrect syntax is: OPER <username> <password>\r\n";
             ServerResponse(response, client_fd);
@@ -381,12 +383,99 @@ void Server::HandleChannels(int client_fd, Client &client, std::string type, std
                 if (channels.find(channelName) == channels.end())
                     channels.insert(std::pair<std::string,Channel>(channelName, Channel(channelName)));
 
-                channels[channelName].addMember(&client);
-                std::string response = "\e[1;32m\n:YourServer 001 :\e[0;37m Welcome to #" + channelName + " " + client.getUsername() + "\r\n";
-                ServerResponse(response, client_fd);
+                if (channels[channelName].isMember(&client))
+                {
+                    std::string response = "YourServer 001 :You are already a member of #" + channelName + "\r\n";
+                    ServerResponse(response, client_fd);
+                }
+                else
+                {
+                    channels[channelName].addMember(&client);
+                    std::string response = "\e[1;32m\n:YourServer 001 :\e[0;37m Welcome to #" + channelName + " " + client.getUsername() + "\r\n";
+                    ServerResponse(response, client_fd);
+                }
             }
         }
+    }
 
+    // comando PART
+    else if (type == "PART")
+    {
+        if (params.empty())
+        {
+            std::string response = "\e[1;31m\n:YourServer 001 :Wrong syntax for PART command\n\e[0;37mCorrect syntax is: PART #<channel-name>\r\n";
+            ServerResponse(response, client_fd);
+        }
+        else
+        {
+            params.erase(0, params.find_first_not_of(" \n\r\t\f\v#"));
+            params.erase(params.find_last_not_of(" \n\r\t\f\v") + 1);
+            if (channels.find(params) == channels.end())
+            {
+                std::string response = "\e[1;31m\n:YourServer 001 :The channel you are trying to leave does not exist\r\n";
+                ServerResponse(response, client_fd);
+            }
+            else
+            {
+                if (channels[params].isMember(&client))
+                {
+                    channels[params].removeMember(&client);
+                    std::string response = "YourServer 001 :You left the channel #" + params + "\r\n";
+                    ServerResponse(response, client_fd);
+                }
+                else
+                {
+                    std::string response = "YourServer 001 :You are not a member of the channel #" + params + "\r\n";
+                    ServerResponse(response, client_fd);
+                }
+            }
+        }
+    }
+}
+
+
+void Server::HandleChannelOpers(int client_fd, Client &client, std::string type, std::string params)
+{
+    (void)client;
+    // INVITE command
+    if (type == "INVITE")
+    {
+        if (params.empty())
+        {
+            std::string response = "\e[1;31m\n:YourServer 001 :Wrong syntax for INVITE command\n\e[0;37mCorrect syntax is: INVITE <nickname> #<channel-name>\r\n";
+            ServerResponse(response, client_fd);
+        }
+        else if (!client.getOper())
+        {
+            std::string response = "\e[1;31m\n:YourServer 001 : You are not an operator for this Server!\e[0;37m\n\r\n";
+            ServerResponse(response, client_fd);
+        }
+        else
+        {
+            size_t firstSpace = params.find(' ');
+            std::string tempUser = params.substr(0, firstSpace);
+            std::string tempChannel = params.substr(firstSpace + 1, params.length());
+            tempUser.erase(0, tempUser.find_first_not_of(" \n\r\t\f\v"));
+            tempUser.erase(tempUser.find_last_not_of(" \n\r\t\f\v") + 1);
+            tempChannel.erase(0, tempChannel.find_first_not_of(" \n\r\t\f\v#"));
+            tempChannel.erase(tempChannel.find_last_not_of(" \n\r\t\f\v") + 1);
+
+            if (findClientByNickname(clients, tempUser) == clients.end())
+            {
+                // gestione errore
+            }
+            else if (findChannelByName(channels, tempChannel) == channels.end())
+            {
+                // gestione errore
+            }
+            else
+            {
+                std::string toSendStr = client.getNickname() + " " + type + " " + tempUser + " :#" + tempChannel;
+                const char *toSend = toSendStr.c_str();
+                Client tmp = findClientByNickname(clients, tempUser)->second;
+                send(tmp.getFD(), toSend, strlen(toSend), 0);
+            }
+        }
     }
 }
 

@@ -55,6 +55,7 @@ class Server
         void CloseFds();
         void HandleLogging(int client_fd, Client &client, std::string type, std::string params);
         void HandleChannels(int client_fd, Client &client, std::string type, std::string params);
+        void HandleChannelOpers(int client_fd, Client &client, std::string type, std::string params);
         void HandlePrivateMsg(int client_fd, Client &client, std::string params);
         void Run();
 };
