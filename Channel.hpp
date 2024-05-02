@@ -53,6 +53,16 @@ class Channel
             isInvite_ = !isInvite_;
         }
 
+        int getMaxUsers()
+        {
+            return maxUsers_;
+        }
+
+        void setMaxUsers(int newMax)
+        {
+            maxUsers_ = newMax;
+        }
+
 
     private:
         std::string name_;
