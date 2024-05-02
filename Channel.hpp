@@ -1,6 +1,6 @@
 #include <string>
-#include <unordered_set>
-#include <unordered_map>
+#include <list>
+#include <set>
 
 class Client;
 
@@ -28,7 +28,7 @@ class Channel
             return false;
         }
 
-        std::unordered_set<Client*> getMembers()
+        std::set<Client*> getMembers()
         {
             return members_;
         }
@@ -59,8 +59,8 @@ class Channel
     private:
         std::string name_;
         std::string topic_;
-        std::unordered_set<Client*> members_;
-        std::unordered_set<char> modes_;
+        std::set<Client*> members_;
+        std::set<char> modes_;
         int maxNumber;
         bool isInvite;
 };

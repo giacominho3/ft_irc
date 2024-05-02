@@ -15,6 +15,7 @@ void Server::ServerResponse(std::string message, int client_fd)
 {
     const char* passwordMsg = message.c_str();
     ssize_t sent = send(client_fd, passwordMsg, strlen(passwordMsg), 0);
+    // std::cout << message << std::endl;
     if (sent == -1)
     {
         std::cerr << RED << "Failed to send welcome message: " << strerror(errno) << WHI << std::endl;
@@ -239,6 +240,8 @@ void Server::HandleMessage(int client_fd, std::string command)
         }
         else
         {
+            command_params.erase(0, command_params.find_first_not_of(" \n\r"));
+            command_params.erase(command_params.find_last_not_of(" \n\r") + 1);
             if (command_params == Password)
             {
                 Client client(client_fd);
@@ -281,6 +284,9 @@ void Server::HandleLogging(int client_fd, Client &client, std::string type, std:
 {
     // controllare se nick o username già esistono
     // permettere la sostituzione di nick e username
+
+    params.erase(0, params.find_first_not_of(" \n\r"));
+    params.erase(params.find_last_not_of(" \n\r") + 1);
 
     // NICK command
     if (type == "NICK")
@@ -364,6 +370,8 @@ void Server::HandleLogging(int client_fd, Client &client, std::string type, std:
 
 void Server::HandleChannels(int client_fd, Client &client, std::string type, std::string params)
 {
+    params.erase(0, params.find_first_not_of(" \n\r"));
+    params.erase(params.find_last_not_of(" \n\r") + 1);
     // JOIN command
     if (type == "JOIN")
     {
@@ -448,7 +456,11 @@ void Server::HandleChannels(int client_fd, Client &client, std::string type, std
             std::string channelName = it->first;
             Channel& channel = it->second;
 
-            std::string response = ":YourServer 322 " + client.getNickname() + " " + channelName + " " + std::to_string(channel.getMembers().size()) + " :" + "topic" + "\r\n";
+            std::stringstream ss;
+            ss << channel.getMembers().size();
+            std::string sizeStr = ss.str();
+
+            std::string response = ":YourServer 322 " + client.getNickname() + " " + channelName + " " + sizeStr + " :" + "topic" + "\r\n";
             ServerResponse(response, client_fd);
         }
 
@@ -460,6 +472,9 @@ void Server::HandleChannels(int client_fd, Client &client, std::string type, std
 
 void Server::HandleChannelOpers(int client_fd, Client &client, std::string type, std::string params)
 {
+
+    params.erase(0, params.find_first_not_of(" \n\r"));
+    params.erase(params.find_last_not_of(" \n\r") + 1);
     if (!client.getOper())
     {
         std::string response = "\e[1;31m\n:YourServer 482 : You are not an operator for this Server!\e[0;37m\n\r\n";
@@ -541,8 +556,8 @@ void Server::HandleChannelOpers(int client_fd, Client &client, std::string type,
                     channel.removeMember(tempClient);
                     send(tempClient->getFD(), toSend, strlen(toSend), 0);
 
-                    std::unordered_set<Client*> channelMembers = channel.getMembers();
-                    for (std::unordered_set<Client*>::iterator it = channelMembers.begin(); it != channelMembers.end(); ++it)
+                    std::set<Client*> channelMembers = channel.getMembers();
+                    for (std::set<Client*>::iterator it = channelMembers.begin(); it != channelMembers.end(); ++it)
                     {
                         Client* c = *it;
                         send(c->getFD(), toSend, strlen(toSend), 0);
@@ -561,6 +576,8 @@ void Server::HandleChannelOpers(int client_fd, Client &client, std::string type,
 
 void Server::HandlePrivateMsg(int client_fd, Client &client, std::string params)
 {
+    params.erase(0, params.find_first_not_of(" \n\r"));
+    params.erase(params.find_last_not_of(" \n\r") + 1);
     // PRIVMSG and NOTICE command
     if (params.empty())
     {
@@ -574,7 +591,7 @@ void Server::HandlePrivateMsg(int client_fd, Client &client, std::string params)
         receiver.erase(0, receiver.find_first_not_of(" \n\r\t\f\v"));
         receiver.erase(receiver.find_last_not_of(" \n\r\t\f\v") + 1);
         std::string message = params.substr(divider + 1, params.length());
-        message = client.getNickname() + " : " + message;
+        message = client.getNickname() + " : " + message + "\r\n";
         const char *toSend = message.c_str();
 
         if (receiver.find('#') != receiver.npos)
@@ -586,8 +603,8 @@ void Server::HandlePrivateMsg(int client_fd, Client &client, std::string params)
                 Channel &channel = findChannelByName(channels, receiver)->second;
                 if (channel.isMember(&client))
                 {
-                    std::unordered_set<Client*> channelMembers = channel.getMembers();
-                    for (std::unordered_set<Client*>::iterator it = channelMembers.begin(); it != channelMembers.end(); ++it)
+                    std::set<Client*> channelMembers = channel.getMembers();
+                    for (std::set<Client*>::iterator it = channelMembers.begin(); it != channelMembers.end(); ++it)
                     {
                         Client* c = *it;
                         if (c->getFD() != client_fd)
