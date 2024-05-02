@@ -225,12 +225,11 @@ void Server::HandleClient(int client_fd)
 void Server::HandleMessage(int client_fd, std::string command)
 {
     // da togliere
-    std::cout << "Messagge from client <" << client_fd << ">: " << command << std::endl;
+    // std::cout << "Messagge from client <" << client_fd << ">: " << command << std::endl;
 
     std::string command_type = GetCommandType(command);
     std::string command_params = GetCommandParams(command);
 
-    // creare metodo per handlepass
     if (command_type == "PASS")
     {
         if (clients.find(client_fd) != clients.end())
@@ -263,7 +262,7 @@ void Server::HandleMessage(int client_fd, std::string command)
             Client &client = clients.find(client_fd)->second;
             if (command_type == "NICK" || command_type == "USER" || command_type == "OPER")
                 HandleLogging(client_fd, client, command_type, command_params);
-            else if (command_type == "JOIN" || command_type == "PART")
+            else if (command_type == "JOIN" || command_type == "PART" || command_type == "LIST")
                 HandleChannels(client_fd, client, command_type, command_params);
             else if (command_type == "INVITE" || command_type == "KICK")
                 HandleChannelOpers(client_fd, client, command_type, command_params);
@@ -430,6 +429,28 @@ void Server::HandleChannels(int client_fd, Client &client, std::string type, std
                 }
             }
         }
+    }
+
+    // LIST command
+    else if (type == "LIST")
+    {
+        if (channels.size() == 0)
+        {
+            std::string noChannelsResponse = "\e[1;31m\n:YourServer 322 " + client.getNickname() + " there are no channels in this Server!\e[0;37m\n\r\n";
+            ServerResponse(noChannelsResponse, client_fd);
+            return ;
+        }
+        for (std::map<std::string, Channel>::iterator it = channels.begin(); it != channels.end(); ++it)
+        {
+            std::string channelName = it->first;
+            Channel& channel = it->second;
+
+            std::string response = ":YourServer 322 " + client.getNickname() + " " + channelName + " " + std::to_string(channel.getMembers().size()) + " :" + "topic" + "\r\n";
+            ServerResponse(response, client_fd);
+        }
+
+        std::string endListResponse = ":YourServer 323 " + client.getNickname() + " :End of /LIST\r\n";
+        ServerResponse(endListResponse, client_fd);
     }
 }
 
