@@ -265,7 +265,7 @@ void Server::HandleMessage(int client_fd, std::string command)
                 HandleLogging(client_fd, client, command_type, command_params);
             else if (command_type == "JOIN" || command_type == "PART")
                 HandleChannels(client_fd, client, command_type, command_params);
-            else if (command_type == "INVITE")
+            else if (command_type == "INVITE" || command_type == "KICK")
                 HandleChannelOpers(client_fd, client, command_type, command_params);
             else if (command_type == "PRIVMSG")
                 HandlePrivateMsg(client_fd, client, command_params);
@@ -398,7 +398,7 @@ void Server::HandleChannels(int client_fd, Client &client, std::string type, std
         }
     }
 
-    // comando PART
+    // PART command
     else if (type == "PART")
     {
         if (params.empty())
@@ -436,18 +436,19 @@ void Server::HandleChannels(int client_fd, Client &client, std::string type, std
 
 void Server::HandleChannelOpers(int client_fd, Client &client, std::string type, std::string params)
 {
-    (void)client;
+    if (!client.getOper())
+    {
+        std::string response = "\e[1;31m\n:YourServer 001 : You are not an operator for this Server!\e[0;37m\n\r\n";
+        ServerResponse(response, client_fd);
+        return ;
+    }
+
     // INVITE command
     if (type == "INVITE")
     {
         if (params.empty())
         {
             std::string response = "\e[1;31m\n:YourServer 001 :Wrong syntax for INVITE command\n\e[0;37mCorrect syntax is: INVITE <nickname> #<channel-name>\r\n";
-            ServerResponse(response, client_fd);
-        }
-        else if (!client.getOper())
-        {
-            std::string response = "\e[1;31m\n:YourServer 001 : You are not an operator for this Server!\e[0;37m\n\r\n";
             ServerResponse(response, client_fd);
         }
         else
@@ -474,6 +475,60 @@ void Server::HandleChannelOpers(int client_fd, Client &client, std::string type,
                 const char *toSend = toSendStr.c_str();
                 Client tmp = findClientByNickname(clients, tempUser)->second;
                 send(tmp.getFD(), toSend, strlen(toSend), 0);
+            }
+        }
+    }
+
+    // KICK command
+    else if (type == "KICK")
+    {
+        if (params.empty())
+        {
+            std::string response = "\e[1;31m\n:YourServer 001 :Wrong syntax for KICK command\n\e[0;37mCorrect syntax is: KICK #<channel-name> <nickname> [:<comment>]\r\n";
+            ServerResponse(response, client_fd);
+        }
+        else
+        {
+            size_t firstSpace = params.find(' ');
+            std::string tempChannel = params.substr(0, firstSpace);
+            std::string tempUser = params.substr(firstSpace + 1, params.length());
+            tempUser.erase(0, tempUser.find_first_not_of(" \n\r\t\f\v"));
+            tempUser.erase(tempUser.find_last_not_of(" \n\r\t\f\v") + 1);
+            tempChannel.erase(0, tempChannel.find_first_not_of(" \n\r\t\f\v#"));
+            tempChannel.erase(tempChannel.find_last_not_of(" \n\r\t\f\v") + 1);
+
+            if (findClientByNickname(clients, tempUser) == clients.end())
+            {
+                // gestione errore
+            }
+            else if (findChannelByName(channels, tempChannel) == channels.end())
+            {
+                // gestione errore
+            }
+            else
+            {
+                std::string toSendStr = ":" + client.getNickname() + " KICK #" + tempChannel + " " + tempUser;
+                const char *toSend = toSendStr.c_str();
+
+                Channel &channel = findChannelByName(channels, tempChannel)->second;
+                Client *tempClient = &findClientByNickname(clients, tempUser)->second;
+                if (channel.isMember(&client) && channel.isMember(tempClient))
+                {
+                    channel.removeMember(tempClient);
+                    send(tempClient->getFD(), toSend, strlen(toSend), 0);
+
+                    std::unordered_set<Client*> channelMembers = channel.getMembers();
+                    for (std::unordered_set<Client*>::iterator it = channelMembers.begin(); it != channelMembers.end(); ++it)
+                    {
+                        Client* c = *it;
+                        send(c->getFD(), toSend, strlen(toSend), 0);
+                        // controllare errori nell'invio
+                    }
+                }
+                else
+                {
+                    // gestione errore
+                }
             }
         }
     }
