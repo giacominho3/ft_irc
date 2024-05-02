@@ -9,7 +9,7 @@ class Channel
     public:
 
         Channel() {}
-        Channel(std::string& name) : name_(name), maxNumber(1000), isInvite(false) {}
+        Channel(std::string& name) : name_(name), maxUsers_(1000), isInvite_(false), isTopicOper_(false), passcode_("none") {}
 
         void addMember(Client* client)
         {
@@ -43,24 +43,23 @@ class Channel
             return topic_;
         }
 
-        void setMode(char mode, bool enable)
+        bool getInvite()
         {
-            if (enable)
-                modes_.insert(mode);
-            else
-                modes_.erase(mode);
+            return isInvite_;
         }
 
-        bool isModeSet(char mode) const
+        void setInvite()
         {
-            return modes_.find(mode) != modes_.end();
+            isInvite_ = !isInvite_;
         }
+
 
     private:
         std::string name_;
         std::string topic_;
         std::set<Client*> members_;
-        std::set<char> modes_;
-        int maxNumber;
-        bool isInvite;
+        int maxUsers_;
+        bool isInvite_;
+        bool isTopicOper_;
+        std::string passcode_;
 };

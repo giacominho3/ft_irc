@@ -404,9 +404,17 @@ void Server::HandleChannels(int client_fd, Client &client, std::string type, std
                 }
                 else
                 {
-                    channels[channelName].addMember(&client);
-                    std::string response = "\e[1;32m\n:YourServer 332 :\e[0;37m Welcome to #" + channelName + " " + client.getUsername() + "\r\n";
-                    ServerResponse(response, client_fd);
+                    if (!channels[channelName].getInvite())
+                    {
+                        channels[channelName].addMember(&client);
+                        std::string response = "\e[1;32m\n:YourServer 332 :\e[0;37m Welcome to #" + channelName + " " + client.getUsername() + "\r\n";
+                        ServerResponse(response, client_fd);
+                    }
+                    else
+                    {
+                        std::string response = "\e[1;31m\n:YourServer 464 :\e[0;37m The channel #" + channelName + " is invite-only\r\n";
+                        ServerResponse(response, client_fd);
+                    }
                 }
             }
         }
