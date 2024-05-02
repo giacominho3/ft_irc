@@ -233,7 +233,10 @@ void Server::HandleMessage(int client_fd, std::string command)
     if (command_type == "PASS")
     {
         if (clients.find(client_fd) != clients.end())
-            std::cout << "You had already inserted the password!" << std::endl;
+        {
+            std::string response = "\e[1;31m\n:YourServer 464 :You had already inserted the password!\e[0;37m\r\n";
+            ServerResponse(response, client_fd);
+        }
         else
         {
             if (command_params == Password)
@@ -243,7 +246,7 @@ void Server::HandleMessage(int client_fd, std::string command)
             }
             else
             {
-                std::string response = "\e[1;31m\n:YourServer 001 :WRONG PASSWORD!\e[0;37m\r\n";
+                std::string response = "\e[1;31m\n:YourServer 464 :WRONG PASSWORD!\e[0;37m\r\n";
                 ServerResponse(response, client_fd);
             }
         }
@@ -253,7 +256,7 @@ void Server::HandleMessage(int client_fd, std::string command)
     {
         if (clients.find(client_fd) == clients.end())
         {
-            std::string response = "\e[1;31m\n:YourServer 001 :Password needed to commuinicate!\e[0;37m\r\n";
+            std::string response = "\e[1;31m\n:YourServer 464 :Password needed to commuinicate!\e[0;37m\r\n";
             ServerResponse(response, client_fd);
             return ;
         }
@@ -284,7 +287,7 @@ void Server::HandleLogging(int client_fd, Client &client, std::string type, std:
     {
         if (params.empty())
         {
-            std::string response = "\e[1;31m\n:YourServer 001 :Wrong syntax for NICK command\n\e[0;37mCorrect syntax is: NICK <nickname>\r\n";
+            std::string response = "\e[1;31m\n:YourServer 461 :Wrong syntax for NICK command\n\e[0;37mCorrect syntax is: NICK <nickname>\r\n";
             ServerResponse(response, client_fd);
             return ;
         }
@@ -302,7 +305,7 @@ void Server::HandleLogging(int client_fd, Client &client, std::string type, std:
     {
         if (params.empty())
         {
-            std::string response = "\e[1;31m\n:YourServer 001 :Wrong syntax for USER command\n\e[0;37mCorrect syntax is: USER <username> <hostname> <servername> :<realname>\r\n";
+            std::string response = "\e[1;31m\n:YourServer 461 :Wrong syntax for USER command\n\e[0;37mCorrect syntax is: USER <username> <hostname> <servername> :<realname>\r\n";
             ServerResponse(response, client_fd);
         }
         size_t firstSpace = params.find(' ');
@@ -326,7 +329,7 @@ void Server::HandleLogging(int client_fd, Client &client, std::string type, std:
     {
         if (params.empty())
         {
-            std::string response = "\e[1;31m\n:YourServer 001 :Wrong syntax for OPER command\n\e[0;37mCorrect syntax is: OPER <username> <password>\r\n";
+            std::string response = "\e[1;31m\n:YourServer 461 :Wrong syntax for OPER command\n\e[0;37mCorrect syntax is: OPER <username> <password>\r\n";
             ServerResponse(response, client_fd);
         }
 
@@ -344,13 +347,13 @@ void Server::HandleLogging(int client_fd, Client &client, std::string type, std:
                 Client &tempClient = it->second;
                 if (tempClient.getOper())
                 {
-                    std::string response = "\n:YourServer 001 :" + tempClient.getUsername() + " is already an operator for this Server!\r\n";
+                    std::string response = "\n:YourServer 464 :" + tempClient.getUsername() + " is already an operator for this Server!\r\n";
                     ServerResponse(response, client_fd);
                 }
                 else
                 {
                     tempClient.setOper(1);
-                    std::string response = "\n:YourServer 001 :" + tempClient.getUsername() + " is now an operator for this Server\r\n";
+                    std::string response = "\n:YourServer 381 :" + tempClient.getUsername() + " is now an operator for this Server\r\n";
                     ServerResponse(response, client_fd);
                 }
             }
@@ -366,7 +369,7 @@ void Server::HandleChannels(int client_fd, Client &client, std::string type, std
     {
         if (params.empty())
         {
-            std::string response = "\e[1;31m\n:YourServer 001 :Wrong syntax for JOIN command\n\e[0;37mCorrect syntax is: JOIN #<channel-name>[,<channel-name,...]\r\n";
+            std::string response = "\e[1;31m\n:YourServer 461 :Wrong syntax for JOIN command\n\e[0;37mCorrect syntax is: JOIN #<channel-name>[,<channel-name,...]\r\n";
             ServerResponse(response, client_fd);
         }
         else
@@ -384,13 +387,13 @@ void Server::HandleChannels(int client_fd, Client &client, std::string type, std
 
                 if (channels[channelName].isMember(&client))
                 {
-                    std::string response = "YourServer 001 :You are already a member of #" + channelName + "\r\n";
+                    std::string response = "YourServer 442 :You are already a member of #" + channelName + "\r\n";
                     ServerResponse(response, client_fd);
                 }
                 else
                 {
                     channels[channelName].addMember(&client);
-                    std::string response = "\e[1;32m\n:YourServer 001 :\e[0;37m Welcome to #" + channelName + " " + client.getUsername() + "\r\n";
+                    std::string response = "\e[1;32m\n:YourServer 332 :\e[0;37m Welcome to #" + channelName + " " + client.getUsername() + "\r\n";
                     ServerResponse(response, client_fd);
                 }
             }
@@ -402,7 +405,7 @@ void Server::HandleChannels(int client_fd, Client &client, std::string type, std
     {
         if (params.empty())
         {
-            std::string response = "\e[1;31m\n:YourServer 001 :Wrong syntax for PART command\n\e[0;37mCorrect syntax is: PART #<channel-name>\r\n";
+            std::string response = "\e[1;31m\n:YourServer 461 :Wrong syntax for PART command\n\e[0;37mCorrect syntax is: PART #<channel-name>\r\n";
             ServerResponse(response, client_fd);
         }
         else
@@ -411,7 +414,7 @@ void Server::HandleChannels(int client_fd, Client &client, std::string type, std
             params.erase(params.find_last_not_of(" \n\r\t\f\v") + 1);
             if (channels.find(params) == channels.end())
             {
-                std::string response = "\e[1;31m\n:YourServer 001 :The channel you are trying to leave does not exist\r\n";
+                std::string response = "\e[1;31m\n:YourServer 442 :The channel you are trying to leave does not exist\r\n";
                 ServerResponse(response, client_fd);
             }
             else
@@ -424,7 +427,7 @@ void Server::HandleChannels(int client_fd, Client &client, std::string type, std
                 }
                 else
                 {
-                    std::string response = "YourServer 001 :You are not a member of the channel #" + params + "\r\n";
+                    std::string response = "YourServer 442 :You are not a member of the channel #" + params + "\r\n";
                     ServerResponse(response, client_fd);
                 }
             }
@@ -459,7 +462,7 @@ void Server::HandleChannelOpers(int client_fd, Client &client, std::string type,
 {
     if (!client.getOper())
     {
-        std::string response = "\e[1;31m\n:YourServer 001 : You are not an operator for this Server!\e[0;37m\n\r\n";
+        std::string response = "\e[1;31m\n:YourServer 482 : You are not an operator for this Server!\e[0;37m\n\r\n";
         ServerResponse(response, client_fd);
         return ;
     }
@@ -469,7 +472,7 @@ void Server::HandleChannelOpers(int client_fd, Client &client, std::string type,
     {
         if (params.empty())
         {
-            std::string response = "\e[1;31m\n:YourServer 001 :Wrong syntax for INVITE command\n\e[0;37mCorrect syntax is: INVITE <nickname> #<channel-name>\r\n";
+            std::string response = "\e[1;31m\n:YourServer 461 :Wrong syntax for INVITE command\n\e[0;37mCorrect syntax is: INVITE <nickname> #<channel-name>\r\n";
             ServerResponse(response, client_fd);
         }
         else
@@ -505,7 +508,7 @@ void Server::HandleChannelOpers(int client_fd, Client &client, std::string type,
     {
         if (params.empty())
         {
-            std::string response = "\e[1;31m\n:YourServer 001 :Wrong syntax for KICK command\n\e[0;37mCorrect syntax is: KICK #<channel-name> <nickname> [:<comment>]\r\n";
+            std::string response = "\e[1;31m\n:YourServer 461 :Wrong syntax for KICK command\n\e[0;37mCorrect syntax is: KICK #<channel-name> <nickname> [:<comment>]\r\n";
             ServerResponse(response, client_fd);
         }
         else
@@ -561,7 +564,7 @@ void Server::HandlePrivateMsg(int client_fd, Client &client, std::string params)
     // PRIVMSG and NOTICE command
     if (params.empty())
     {
-        std::string response = "\e[1;31m\n:YourServer 001 :Wrong syntax for PRIVMSG command\n\e[0;37mCorrect syntax is: PRIVMSG #<channel-name>/<nickname> :<message>\r\n";
+        std::string response = "\e[1;31m\n:YourServer 461 :Wrong syntax for PRIVMSG command\n\e[0;37mCorrect syntax is: PRIVMSG #<channel-name>/<nickname> :<message>\r\n";
         ServerResponse(response, client_fd);
     }
     else
@@ -594,13 +597,13 @@ void Server::HandlePrivateMsg(int client_fd, Client &client, std::string params)
                 }
                 else
                 {
-                    std::string response = "\e[1;31m\n:YourServer 001 :You are not a member of this channel!\e[0;37m\r\n";
+                    std::string response = "\e[1;31m\n:YourServer 442 :You are not a member of this channel!\e[0;37m\r\n";
                     ServerResponse(response, client_fd);
                 }
             }
             else
             {
-                std::string response = "\e[1;31m\n:YourServer 001 :Seems like the channel name you typed does not exist!\e[0;37m\r\n";
+                std::string response = "\e[1;31m\n:YourServer 442 :Seems like the channel name you typed does not exist!\e[0;37m\r\n";
                 ServerResponse(response, client_fd);
             }
         }
@@ -616,7 +619,7 @@ void Server::HandlePrivateMsg(int client_fd, Client &client, std::string params)
             }
             else
             {
-                std::string response = "\e[1;31m\n:YourServer 001 :Seems like the nickname you typed does not exist!\e[0;37m\r\n";
+                std::string response = "\e[1;31m\n:YourServer 441 :Seems like the nickname you typed does not exist!\e[0;37m\r\n";
                 ServerResponse(response, client_fd);
             }
         }
