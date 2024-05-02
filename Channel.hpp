@@ -8,8 +8,8 @@ class Channel
 {
     public:
 
-        Channel() {};
-        Channel(std::string& name) : name_(name) {}
+        Channel() {}
+        Channel(std::string& name) : name_(name), maxNumber(1000), isInvite(false) {}
 
         void addMember(Client* client)
         {
@@ -61,4 +61,6 @@ class Channel
         std::string topic_;
         std::unordered_set<Client*> members_;
         std::unordered_set<char> modes_;
+        int maxNumber;
+        bool isInvite;
 };
