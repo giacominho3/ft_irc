@@ -266,7 +266,7 @@ void Server::HandleMessage(int client_fd, std::string command)
                 HandleChannels(client_fd, client, command_type, command_params);
             else if (command_type == "INVITE" || command_type == "KICK")
                 HandleChannelOpers(client_fd, client, command_type, command_params);
-            else if (command_type == "PRIVMSG")
+            else if (command_type == "PRIVMSG" || command_type == "NOTICE")
                 HandlePrivateMsg(client_fd, client, command_params);
         }
     }
@@ -558,7 +558,7 @@ void Server::HandleChannelOpers(int client_fd, Client &client, std::string type,
 
 void Server::HandlePrivateMsg(int client_fd, Client &client, std::string params)
 {
-    // PRIVMSG command
+    // PRIVMSG and NOTICE command
     if (params.empty())
     {
         std::string response = "\e[1;31m\n:YourServer 001 :Wrong syntax for PRIVMSG command\n\e[0;37mCorrect syntax is: PRIVMSG #<channel-name>/<nickname> :<message>\r\n";
