@@ -404,7 +404,7 @@ void Server::HandleChannels(int client_fd, Client &client, std::string type, std
                 }
                 else
                 {
-                    if (!channels[channelName].getInvite())
+                    if (!channels[channelName].getInvite() || (channels[channelName].getMaxUsers() > (channels[channelName].getMembers().size() + 1)))
                     {
                         channels[channelName].addMember(&client);
                         std::string response = "\e[1;32m\n:YourServer 332 :\e[0;37m Welcome to #" + channelName + " " + client.getUsername() + "\r\n";
@@ -412,7 +412,7 @@ void Server::HandleChannels(int client_fd, Client &client, std::string type, std
                     }
                     else
                     {
-                        std::string response = "\e[1;31m\n:YourServer 464 :\e[0;37m The channel #" + channelName + " is invite-only\r\n";
+                        std::string response = "\e[1;31m\n:YourServer 464 :\e[0;37m The channel #" + channelName + " is invite-only or is at max capacity!\r\n";
                         ServerResponse(response, client_fd);
                     }
                 }
