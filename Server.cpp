@@ -211,7 +211,7 @@ void Server::HandleClient(int client_fd)
             if (command == "QUIT")
             {
                 std::cout << RED << "Client <" << client_fd << "> disconnected" << WHI << std::endl;
-                send(client_fd, "QUIT", 4, 0);
+                send(client_fd, "QUIT\r\n", 4, 0);
                 close(client_fd);
                 client_buffers.erase(client_fd);
                 return;
@@ -341,12 +341,16 @@ void Server::HandleLogging(int client_fd, Client &client, std::string type, std:
 
         size_t firstSpace = params.find(' ');
         std::string tempUser = params.substr(0, firstSpace);
+        tempUser.erase(0, tempUser.find_first_not_of(" \n\r"));
+        tempUser.erase(tempUser.find_last_not_of(" \n\r") + 1);
         std::map<int, Client>::iterator it = findClientByUsername(clients, tempUser);
 
         if (it != clients.end())
         {
             size_t secondSpace = params.find(' ', firstSpace + 1);
             std::string tempOpPass = params.substr(firstSpace + 1, secondSpace);
+            tempOpPass.erase(0, tempOpPass.find_first_not_of(" \n\r"));
+            tempOpPass.erase(tempOpPass.find_last_not_of(" \n\r") + 1);
 
             if (tempOpPass == opPass)
             {
@@ -576,6 +580,7 @@ void Server::HandleChannelOpers(int client_fd, Client &client, std::string type,
 
 void Server::HandlePrivateMsg(int client_fd, Client &client, std::string params)
 {
+    // da spostare nell'else
     params.erase(0, params.find_first_not_of(" \n\r"));
     params.erase(params.find_last_not_of(" \n\r") + 1);
     // PRIVMSG and NOTICE command
