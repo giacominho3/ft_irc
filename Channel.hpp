@@ -48,19 +48,49 @@ class Channel
             return isInvite_;
         }
 
-        void setInvite()
-        {
-            isInvite_ = !isInvite_;
+        void setInvite(bool setting)
+        { 
+            isInvite_ = setting;
         }
 
-        int getMaxUsers()
+        size_t getMaxUsers()
         {
             return maxUsers_;
         }
 
-        void setMaxUsers(int newMax)
+        void setMaxUsers(size_t newMax)
         {
             maxUsers_ = newMax;
+        }
+
+        void removeMaxUsers()
+        {
+            maxUsers_ = 1000;
+        }
+
+        bool getTopicOper()
+        {
+            return isTopicOper_;
+        }
+
+        void setTopicOper(bool setting)
+        {
+            isTopicOper_ = setting;
+        }
+
+        std::string getPasscode()
+        {
+            return passcode_;
+        }
+
+        void setPasscode(std::string key)
+        {
+            passcode_ = key;
+        }
+
+        void removePasscode()
+        {
+            passcode_ = "none";
         }
 
 
@@ -68,7 +98,7 @@ class Channel
         std::string name_;
         std::string topic_;
         std::set<Client*> members_;
-        int maxUsers_;
+        size_t maxUsers_;
         bool isInvite_;
         bool isTopicOper_;
         std::string passcode_;

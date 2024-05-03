@@ -13,7 +13,7 @@ def receive_messages(sock):
                 break
             print("\n" + data.decode())
     except socket.error as e:
-        print(f"Socket error: {e}")
+        print("")
     finally:
         print("Closing socket from receiver.")
         sock.close()

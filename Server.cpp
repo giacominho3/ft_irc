@@ -15,7 +15,6 @@ void Server::ServerResponse(std::string message, int client_fd)
 {
     const char* passwordMsg = message.c_str();
     ssize_t sent = send(client_fd, passwordMsg, strlen(passwordMsg), 0);
-    // std::cout << message << std::endl;
     if (sent == -1)
     {
         std::cerr << RED << "Failed to send welcome message: " << strerror(errno) << WHI << std::endl;
@@ -270,7 +269,7 @@ void Server::HandleMessage(int client_fd, std::string command)
                 HandleLogging(client_fd, client, command_type, command_params);
             else if (command_type == "JOIN" || command_type == "PART" || command_type == "LIST")
                 HandleChannels(client_fd, client, command_type, command_params);
-            else if (command_type == "INVITE" || command_type == "KICK")
+            else if (command_type == "INVITE" || command_type == "KICK" || command_type == "MODE")
                 HandleChannelOpers(client_fd, client, command_type, command_params);
             else if (command_type == "PRIVMSG" || command_type == "NOTICE")
                 HandlePrivateMsg(client_fd, client, command_params);
@@ -376,49 +375,65 @@ void Server::HandleChannels(int client_fd, Client &client, std::string type, std
 {
     params.erase(0, params.find_first_not_of(" \n\r"));
     params.erase(params.find_last_not_of(" \n\r") + 1);
+
     // JOIN command
     if (type == "JOIN")
     {
         if (params.empty())
         {
-            std::string response = "\e[1;31m\n:YourServer 461 :Wrong syntax for JOIN command\n\e[0;37mCorrect syntax is: JOIN #<channel-name>[,<channel-name,...]\r\n";
+            std::string response = "\e[1;31m\n:YourServer 461 :Wrong syntax for JOIN command\n\e[0;37mCorrect syntax is: JOIN #<channel-name> [<key>],[#<channel-name> [<key>]]...\r\n";
             ServerResponse(response, client_fd);
         }
         else
         {
             std::istringstream iss(params);
-            std::string channelName;
-
-            while (std::getline(iss, channelName, ','))
+            std::string part;
+            while (std::getline(iss, part, ','))
             {
+                std::istringstream partStream(part);
+                std::string channelName;
+                std::getline(partStream, channelName, ' ');
                 channelName.erase(0, channelName.find_first_not_of(" \n\r\t\f\v#"));
                 channelName.erase(channelName.find_last_not_of(" \n\r\t\f\v") + 1);
 
-                if (channels.find(channelName) == channels.end())
-                    channels.insert(std::pair<std::string,Channel>(channelName, Channel(channelName)));
+                std::string passcode;
+                std::getline(partStream, passcode);
+                passcode.erase(0, passcode.find_first_not_of(" \n\r\t\f\v"));
+                passcode.erase(passcode.find_last_not_of(" \n\r\t\f\v") + 1);
 
-                if (channels[channelName].isMember(&client))
+                if (channels.find(channelName) == channels.end())
+                    channels.insert(std::pair<std::string, Channel>(channelName, Channel(channelName)));
+
+                Channel& channel = channels[channelName];
+
+                if (channel.isMember(&client))
                 {
                     std::string response = "YourServer 442 :You are already a member of #" + channelName + "\r\n";
                     ServerResponse(response, client_fd);
                 }
                 else
                 {
-                    if (!channels[channelName].getInvite() || (channels[channelName].getMaxUsers() > (channels[channelName].getMembers().size() + 1)))
+                    if (channel.getPasscode() != "none" && channel.getPasscode() != passcode)
                     {
-                        channels[channelName].addMember(&client);
-                        std::string response = "\e[1;32m\n:YourServer 332 :\e[0;37m Welcome to #" + channelName + " " + client.getUsername() + "\r\n";
+                        std::string response = "\e[1;31m\n:YourServer 475 " + client.getNickname() + " #" + channelName + " :Cannot join channel (+k) - bad key\r\n\e[0;37m";
                         ServerResponse(response, client_fd);
+                        continue;
                     }
-                    else
+                    if (channel.getInvite() || channel.getMaxUsers() <= channel.getMembers().size())
                     {
-                        std::string response = "\e[1;31m\n:YourServer 464 :\e[0;37m The channel #" + channelName + " is invite-only or is at max capacity!\r\n";
+                        std::string response = "\e[1;31m\n:YourServer 473 " + client.getNickname() + " #" + channelName + " :Cannot join channel (+i) - invite only or at max capacity\r\n\e[0;37m";
                         ServerResponse(response, client_fd);
+                        continue;
                     }
+
+                    channel.addMember(&client);
+                    std::string response = "\e[1;32m\n:YourServer 332 :\e[0;37m Welcome to #" + channelName + " " + client.getUsername() + "\r\n";
+                    ServerResponse(response, client_fd);
                 }
             }
         }
     }
+
 
     // PART command
     else if (type == "PART")
@@ -563,7 +578,7 @@ void Server::HandleChannelOpers(int client_fd, Client &client, std::string type,
 
                 Channel &channel = findChannelByName(channels, tempChannel)->second;
                 Client *tempClient = &findClientByNickname(clients, tempUser)->second;
-                if (channel.isMember(&client) && channel.isMember(tempClient))
+                if (channel.isMember(&client) && channel.isMember(tempClient) && client.getOper())
                 {
                     channel.removeMember(tempClient);
                     send(tempClient->getFD(), toSend, strlen(toSend), 0);
@@ -581,6 +596,100 @@ void Server::HandleChannelOpers(int client_fd, Client &client, std::string type,
                     // gestione errore
                 }
             }
+        }
+    }
+
+    else if (type == "MODE")
+    {
+        if (params.empty())
+        {
+            std::string response = "\e[1;31m\n:YourServer 461 :Wrong syntax for MODE command\n\e[0;37mCorrect syntax is: MODE #<channel-name> <modes>\r\n";
+            ServerResponse(response, client_fd);
+        }
+        else
+        {
+            size_t spacePos = params.find(' ');
+            if (spacePos == std::string::npos)
+            {
+                std::string response = "\e[1;31m\n:YourServer 461 " + client.getNickname() + " MODE :Not enough parameters\r\n\e[0;37m";
+                ServerResponse(response, client_fd);
+                return;
+            }
+            std::string channelName = params.substr(0, spacePos);
+            channelName.erase(0, channelName.find_first_not_of(" #\n\r\t\f\v"));
+            channelName.erase(channelName.find_last_not_of(" \n\r\t\f\v") + 1);
+            std::string modes = params.substr(spacePos + 1);
+            modes.erase(0, modes.find_first_not_of(" \n\r\t\f\v"));
+            modes.erase(modes.find_last_not_of(" \n\r\t\f\v") + 1);
+            std::map<std::string, Channel>::iterator channelIt = findChannelByName(channels, channelName);
+            if (channelIt == channels.end())
+            {
+                std::string response = "\e[1;31m\n:YourServer 403 " + client.getNickname() + " " + channelName + " :No such channel\r\n\e[0;37m";
+                ServerResponse(response, client_fd);
+                return;
+            }
+
+            Channel &channel = channelIt->second;
+            bool setting = true;
+
+            for (size_t i = 0; i < modes.size(); ++i)
+            {
+                char mode = modes[i];
+                switch (mode)
+                {
+                    case '+':
+                        setting = true;
+                        break;
+                    case '-':
+                        setting = false;
+                        break;
+                    case 'i':
+                        channel.setInvite(setting);
+                        break;
+                    case 't':
+                        channel.setTopicOper(setting);
+                        break;
+                    case 'k':
+                        if (setting)
+                        {
+                            spacePos = modes.find(' ');
+                            if (spacePos == std::string::npos)
+                            {
+                                std::string response = "\e[1;31m\n:YourServer 461 " + client.getNickname() + " MODE :Key missing\r\n\e[0;37m";
+                                ServerResponse(response, client_fd);
+                                return;
+                            }
+                            std::string key = modes.substr(spacePos + 1);
+                            channel.setPasscode(key);
+                        }
+                        else
+                            channel.removePasscode();
+                        break;
+                    case 'o': // Operator status
+                        // Implementation for adding or removing an operator goes here
+                        break;
+                    case 'l':
+                        if (setting)
+                        {
+                            spacePos = modes.find(' ');
+                            if (spacePos == std::string::npos)
+                            {
+                                std::string response = "\e[1;31m\n:YourServer 461 " + client.getNickname() + " MODE :Limit number missing\r\n\e[0;37m";
+                                ServerResponse(response, client_fd);
+                                return;
+                            }
+                            int limit = std::stoi(modes.substr(spacePos + 1));
+                            channel.setMaxUsers(limit);
+                        }
+                        else
+                            channel.removeMaxUsers();
+                        break;
+                    default:
+                        break;
+                }
+            }
+            std::string response = "\e[1;32m\n:YourServer MODE " + channelName + " " + modes + "\r\n\e[0;37m";
+            ServerResponse(response, client_fd);
         }
     }
 }
